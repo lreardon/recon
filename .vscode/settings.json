@@ -1,0 +1,15 @@
+{
+  "ruby.rubocop.onSave": true,
+  "ruby.rubocop.useServer": true,
+  "[ruby]": {
+		"editor.insertSpaces": false,
+		"editor.tabSize": 2,
+		"editor.detectIndentation": true,
+		"editor.formatOnSave": false,
+    "editor.defaultFormatter": "LoranKloeze.ruby-rubocop-revived",
+		"editor.codeActionsOnSave": {
+			"source.fixAll.rubocop": "explicit",
+		}
+	},
+	"editor.copyWithSyntaxHighlighting": false,
+}

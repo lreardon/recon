@@ -1,0 +1,4 @@
+[deps]
+DataFrames
+CSV
+Plots

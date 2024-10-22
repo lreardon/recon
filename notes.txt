@@ -1,0 +1,244 @@
+
+
+1
+^1
+^^1
+^^^1 *:^,1,1
+
+Is there any parsing of the forms that doesn't require paretheses?
+
+Is it required to construct arbitrary unary operators?
+
+I think so, because otherwise *:^,a,b merely says add a to b. Thus any form is basically just adding stuff, so we get expressions like a+b = 1+...(a)...+1+1+...(b)...+1, which doesn't consolidate at all.
+
+So we need to be able to create unary operators out of *.
+
+Let's go backwards: What is multiplication? iterated addition.
+
+What is addition? *^bb = b+b = 2xb
+
+*^## is a unary operator created by folding the arguments onto eachother, and *^## =: 2#
+
+We have thus created a unary operator of length 4. To this length we have unary operators:
+
+^, ^^, 
+
+if we parse modifications of 0ary expressions on the right, as in
+
+1^*^## => 2*^## = *^22 = 
+
+parsing like this : find a quantity. parse to its right for unary and then apply.
+
+1^*^#^#*^##
+
+*^## = (+#)(#) = 2#
+**^###0 = *(+#)#1 = 
+
+I think we can analyze unambiguous parsing with strong recursion.
+
+Strings of length 1:
+
+1 is unambiguous
+^ is unambiguous
+* is unambiguous
+# is unambiguous
+
+Suppose all strings of length less than n are unambiguously parsable, and let S be a string of length n.
+
+The structure of S is among the following forms:
+
+(a) 1T, where T is a unary operator.
+(b) *T##, where T is a unary operator.
+(c) T^, where T is a 
+
+
+
+If we start with 0:
+
+0
+^0 = 1
+
+*Abc
+
+reduce A to a via plugging.
+
+operations we can perform on operators: (1) plug, (2) join.
+
+expressions have an order, arity and a level.
+
+In each level l of construction, we can create new expressions via the following:
+
+application of ^ to any a-ary expression --> a-ary expression.
+application of * to any ordered triple of 1-ary, a-ary, and b-ary expressions --> (a+b)-ary expression.
+plugging of any 
+
+For example:
+
+* is order 2, since it relies on expressions of order 1 and 0.
+
+^ is order 1, since it relies on expressions of order 0.
+
+*^x_1x_1 is order 1, since it relies on expressions of order 0.
+
+*^x_1x^1
+
+
+so we can plug and join entries in an expression to reduce the arity.
+
+*Abc is 2-ary, but also relies on a 1-ary function, so there's more to it than that. We can classify arity with a tuple, thus *Abc becomes (1,2)-ary. That's an okay starting point.
+
+* is (1,2)-ary.
+
+(a) We can plug the order-1 hole with any (...,1)-ary expression, resulting in a (...,2)-ary expression.
+We can plug an order-0 hole with a 0-ary expression, resulting in a (1,1)-ary expression.
+We can bind the two order-0 holes, resulting in a (1,1)-ary expression.
+
+
+Exploring (a):
+
+*Abb is the (1,1)-ary expression constructed by binding the two 0-ary holes of *Abc.
+
+*(*Abb,c,d) is a (1,2)-ary expression, the evaluation of which requires plugging of A, c, and d.
+
+Is it possible to create a (2,...)-ary expression?
+
+Are there any expressions of order 2 or greateer?
+
+
+What are the possibilities for creating new expressions?
+
+We can plug holes in expressions.
+We can bind holes in expressions.
+
+
+Initial Expressions:
+
+^(a) : *(A,b,c) : 0
+
+
+Stage 1:
+
+Plugging::
+^(0) : *(^,b,c) : *(A,0,c) : *(A,b,0)
+
+Binding::
+*(A,b,b)
+
+
+Stage 2:
+
+Plugging::
+
+^(^(0))
+
+
+^^ *(^,^^0, a)
+
+in general, can (A@B) be expressed in the recursive framework?
+
+More like:: plug the hole with something at least as big -- 
+
+a (1)-ary can be plugged with a (1)-ary or a (0)-ary.
+
+
+like a 1-dimensional interface being mapped to a 1-dimensional interface or a 0-dimensional interface.
+
+Disc --> Circle --> Point
+
+There can be 2-dimensional interfaces mapped to 1-dimensional interfaces, like a disc that pries apart from the middle to form an annulus.
+
+What can we plug into *Abc?
+
+We can plug any expression into b or c I guess, because they can eventually reduce to 0.
+We can plug any expression above (0,1)-ary into A.
+
+*Abc -> *()bc -> *(*Def)bc, which is (1,4)-ary.
+
+* is (1,2)-ary
+we are able to plug an order 2 hole with it.
+
+a times b = (*(^,a,c),b,0)
+
+(A,b) is a function which takes an order-0 term c and applies A b times to c.
+
+
+
+Epressability of numbers:
+
+How can we make numbers:
+
+Apply unary operators to them.
+
+How can we create unary operators.
+
+Compose unary operators.
+Iterate existing unary operators, as in *(A,b,c)
+
+^ is 1-ary.
+^^ is 1-ary.
+
+*(A,b,c) is (1,2)-ary.
+
+if we bind b and c, we get a (1,1)-ary expression, *(A,b,b). If we fill A with a (1)-ary expression, we get a (0,1)-ary expression.
+
+If we plug A with an (m,n)-ary expression, then we can bind.
+
+Need to allow binding.
+
+Eventually all bindings get resolved, so the number of variables at any stage doesn't matter.
+
+Holes in an expression are of order 1 or 0, right? They represent an operator or a value.
+
+So any hole can be filled by an expression of equal or greater order, and any arities.
+
+An order 0 hole can be filled by any expression of arity (n,m).
+An order 1 hole can be filled by any expression of arity (n,m) where m and n are not both 0.
+
+Alternatively, we could just interpret any (0,0)-ary expression as a function which evaluates to itself.
+
+Thus *5,a,b = 5.
+
+Thus, a(b) = a
+
+Any constant applied to another constant yields itself
+The successor operator yields the "next".
+
+*(^,4,3)
+
+Actually it does become a problem. Big time. We'll have arbitrarily many holes that we need to track, thus the number of characters in our lexicon needs to be unbounded.
+
+We can:
+(1) demand that there are no placeholders in our expressions, meaning that binding is effectively not allowed (this seems undesirable);
+(2) allow binding and placeholders, resulting in an infinite lexicon, but this feels against the spirit of what we're trying to do, though I can't articulate why right now. Something about the effective length and absolute interpretation not being finitely expressable. To manage this, we'd need a variable delimeter and the length of the expression would need an additional log of the number of variables used.
+
+So we might have a lexicon like  { 0, ^, *, (, ), |, . } with 7 symbols, meaning each character in the string is of length 3.
+
+Then there might be n variables in the (0,n)-ary expression above plugging.
+
+A (0,n)-ary expression with length L has absolute length 3(L-n)+3*2n+
+
+
+
+
+
+
+
+
+
+
+R(R(^(#),1,#),1,R(^(#),1,^(1)))
+
+
+R(^(#),1,^(1)) = ^(^(1))
+
+R(R(^(#),1,#),1,^(^(1)))
+
+
+R(^(#),1,#) = ^(#)
+
+R(^(#),1,^(^(1)))
+
+
+R(^(#),1,^(^(1))) = ^(^(^(1)))
+
+^(^(^(1)))

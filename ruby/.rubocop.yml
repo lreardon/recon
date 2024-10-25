@@ -1,21 +1,29 @@
 AllCops:
-    NewCops: enable
+  NewCops: enable
 
-Layout/IndentationStyle:
-  EnforcedStyle: tabs
-  IndentationWidth: 1
+Style/FrozenStringLiteralComment:
+  Enabled: true
+  SafeAutoCorrect: true
+Style/Documentation:
+  Enabled: false
+Style/ClassAndModuleChildren:
+  Enabled: false
 
+Metrics/BlockLength:
+  Enabled: false
+Metrics/MethodLength:
+  Enabled: false
 Metrics/AbcSize:
   Enabled: false
 
-Metrics/ClassLength:
+Layout/LineLength:
   Enabled: false
-
-Metrics/CyclomaticComplexity:
-  Enabled: false
-
-Metrics/MethodLength:
-  Enabled: false
-
-Metrics/PerceivedComplexity:
-  Enabled: false
+# Layout/LineLength:
+#   Enabled: true
+#   Max: 80
+Layout/ArgumentAlignment:
+  EnforcedStyle: with_fixed_indentation
+Layout/IndentationStyle:
+  EnforcedStyle: tabs
+Layout/IndentationWidth:
+  Width: 1

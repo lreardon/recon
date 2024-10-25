@@ -4,7 +4,7 @@
 class Nullary
 		attr_accessor :representation
 
-	def initialize(representation)
-		@representation = representation
-	end
+		def initialize(representation)
+				@representation = representation
+		end
 end

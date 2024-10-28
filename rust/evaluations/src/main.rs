@@ -66,9 +66,6 @@ fn main()  -> Result<(), Box<dyn std::error::Error>> {
 	println!("new_evaluations length: {}", new_evaluations.len());
 	println!("new_evaluation of prince: {}", new_evaluations.get("prince").unwrap().to_string());
 
-
-
-
 	Ok(())
 }
 

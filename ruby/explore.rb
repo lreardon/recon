@@ -1,18 +1,28 @@
 # frozen_string_literal: true
 
 require_relative 'explorer'
+require_relative 'models/progress'
 
-json_file_path = File.join(__dir__, 'explorer_data.json')
+chains_file_path = File.join(__dir__, 'chains.json')
+progress_file_path = File.join(__dir__, 'progress.json')
 
-if File.exist?(json_file_path)
-	explorer_data_json = JSON.parse(File.read(json_file_path))
-	$e =	Explorer.new(
-		evaluations: GDBM.new('evaluations.db'),
-		depth: explorer_data_json['depth'],
-		nullaries_chain: explorer_data_json['nullaries_chain'],
-		unaries_chain: explorer_data_json['unaries_chain'],
-		r: explorer_data_json['r']
-	)
-else
-	$e = Explorer.new(evaluations: GDBM.new('evaluations.db')).save
-end
+progress = Progress.from_json(JSON.parse(File.read(progress_file_path), symbolize_names: true))
+chains = JSON.parse(File.read(chains_file_path), symbolize_names: true)
+
+puts chains
+
+$e = if File.exist?(chains_file_path) && File.exist?(progress_file_path)
+						Explorer.new(
+							evaluations: GDBM.new('evaluations.db'),
+							efficient_evaluations: GDBM.new('efficient_evaluations.db'),
+							chains:,
+							progress:
+						)
+					else
+						Explorer.new(
+							evaluations: GDBM.new('evaluations.db'),
+							efficient_evaluations: GDBM.new('efficient_evaluations.db'),
+							progress: Progress.new,
+							chains:
+						).save
+					end

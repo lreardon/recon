@@ -19,6 +19,7 @@ GEM
       reline (>= 0.4.2)
     json (2.7.1)
     language_server-protocol (3.17.0.3)
+    logger (1.6.1)
     netrc (0.11.0)
     observer (0.1.2)
     parallel (1.24.0)
@@ -34,6 +35,8 @@ GEM
     rbi (0.2.1)
       prism (~> 1.0)
       sorbet-runtime (>= 0.5.9204)
+    rbs (3.6.1)
+      logger
     rdoc (6.6.2)
       psych (>= 4.0.0)
     regexp_parser (2.9.0)
@@ -57,6 +60,7 @@ GEM
     rubocop-ast (1.30.0)
       parser (>= 3.2.1.0)
     ruby-progressbar (1.13.0)
+    ruby-sfst (0.4.4)
     sorbet (0.5.11610)
       sorbet-static (= 0.5.11610)
     sorbet-runtime (0.5.11610)
@@ -94,7 +98,9 @@ DEPENDENCIES
   debug
   gdbm
   gruff
+  rbs
   rubocop (~> 1.60)
+  ruby-sfst
   sorbet
   sorbet-runtime
   tapioca

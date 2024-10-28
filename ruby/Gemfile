@@ -12,3 +12,7 @@ gem 'sorbet-runtime'
 gem 'tapioca', require: false, group: %i[development test]
 
 gem 'gruff'
+
+gem 'rbs'
+
+gem 'ruby-sfst'

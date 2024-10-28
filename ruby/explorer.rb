@@ -1,25 +1,59 @@
 # frozen_string_literal: true
 
-require_relative 'errors/malformed_nullary_string_error'
 require 'gdbm'
 require 'json'
 require 'gruff'
+require 'sfst'
+
+require_relative 'errors/malformed_nullary_string_error'
+require_relative 'models/progress'
 
 # A class for building new unary and nullary expressions.
 class Explorer
 	attr_accessor :depth
 	attr_reader :nullaries_chain, :unaries_chain, :evaluations
 
-	def initialize(evaluations:, depth: 0, nullaries_chain: [['1']], unaries_chain: [['^(*)']], r: 'R(%,&,&)')
-		@depth = depth
-		@nullaries_chain = nullaries_chain
-		@unaries_chain = unaries_chain
-		@r = r
+	SAVE_MODULUS = 5000
+
+	EXPLORING_READY = 0
+	EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES = 1
+	EXPLORING_NULLARIES__OLD_NULLARIES__NEW_UNARIES = 2
+	EXPLORING_UNARIES__NEW_NULLARIES__ALL_UNARIES = 3
+	EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES = 4
+	EXPLORING_DONE = 5
+
+	def initialize(
+		evaluations:,
+		efficient_evaluations:,
+		progress:,
+		chains:
+	)
+		@depth = progress.depth
+		@exploration_state = EXPLORING_READY
+		@nullary_index = progress.nullary_index
+		@unary_index = progress.unary_index
+
+		@nullaries_chain = chains[:nullaries]
+		@unaries_chain = chains[:unaries]
+
 		@evaluations = evaluations
+		@evaluations_compiler = SFST::Compiler.new
+		@efficient_evaluations = efficient_evaluations
+		@save_ticker = 0
 	end
 
 	def nullaries
 		@nullaries_chain.flatten
+	end
+
+	def save_progress
+		progress_json = {
+			depth: @depth,
+			nullary_index: @nullary_index,
+			unary_index: @unary_index
+		}
+
+		File.write(File.join(__dir__, 'progress.json'), progress_json.to_json)
 	end
 
 	def unaries
@@ -27,96 +61,119 @@ class Explorer
 	end
 
 	def explore
-		start_time = Time.now
-
-		last_unaries = @unaries_chain.last
-		last_nullaries = @nullaries_chain.last
-
-		old_unaries = @unaries_chain[0..-2].flatten
+		@save_ticker = 0
+		new_nullaries = @nullaries_chain.last
 		old_nullaries = @nullaries_chain[0..-2].flatten
 
-		new_nullaries = []
+		new_unaries = @unaries_chain.last
+		# old_unaries = @unaries_chain[0..-2].flatten
 
-		num_candidate_nullaries = old_nullaries.length * last_nullaries.length
-		puts "Will require #{num_candidate_nullaries} new candidate nullaries"
-
-		old_nullaries.each do |nullary|
-			last_unaries.each do |unary|
-				new_nullaries << unary.sub('*', nullary)
+		while @exploration_state != EXPLORING_DONE
+			if @exploration_state == EXPLORING_READY
+				@exploration_state = EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES
+				next
 			end
-		end
 
-		num_candidate_nullaries = last_nullaries.length * old_unaries.length
-		puts "Will require #{num_candidate_nullaries} new candidate nullaries"
+			if @exploration_state == EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES
+				new_nullaries[@nullary_index..].each do |nullary|
+					unaries[@unary_index..].each do |unary|
+						commit_resulting_nullary_if_new(unary, nullary)
+						maybe_save_progress
 
-		last_nullaries.each do |nullary|
-			old_unaries.each do |unary|
-				new_nullaries << unary.sub('*', nullary)
+						@unary_index += 1
+					end
+					@nullary_index += 1
+				end
+				@exploration_state = EXPLORING_NULLARIES__OLD_NULLARIES__NEW_UNARIES
+				@nullary_index = 0
+				@unary_index = 0
+				next
 			end
-		end
 
-		num_candidate_nullaries = last_nullaries.length * last_unaries.length
-		puts "Will require #{num_candidate_nullaries} new candidate nullaries"
+			if @exploration_state == EXPLORING_NULLARIES__OLD_NULLARIES__NEW_UNARIES
+				old_nullaries[@nullary_index..].each do |nullary|
+					new_unaries[@unary_index..].each do |unary|
+						commit_resulting_nullary_if_new(unary, nullary)
+						maybe_save_progress
 
-		last_nullaries.each do |nullary|
-			last_unaries.each do |unary|
-				new_nullaries << unary.sub('*', nullary)
+						@unary_index += 1
+					end
+					@nullary_index += 1
+				end
+				@exploration_state = EXPLORING_UNARIES__NEW_NULLARIES__ALL_UNARIES
+				@nullary_index = 0
+				@unary_index = 0
+				next
+
 			end
-		end
 
-		puts "checkpoint #{i}"
+			if @exploration_state == EXPLORING_UNARIES__NEW_NULLARIES__ALL_UNARIES
+				new_nullaries[@nullary_index..].each do |nullary|
+					unaries[@unary_index..].each do |unary|
+						commit_resulting_unaries_if_new(unary, nullary)
+						maybe_save_progress
 
-		new_unaries = []
-		@nullaries_chain.flatten.each do |nullary|
-			first_intermediate = @r.sub('&', nullary)
-			second_intermediate = @r.sub_2nd('&', nullary)
-			@unaries_chain.flatten.each do |unary|
-				first_new_unary = first_intermediate.sub('%', unary.sub('*', '#')).sub('&', '*')
-				second_new_unary = second_intermediate.sub('%', unary.sub('*', '#')).sub('&', '*')
-				new_unaries += [first_new_unary, second_new_unary]
+						@unary_index += 1
+					end
+					@nullary_index += 1
+				end
+				@exploration_state = EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES
+				@nullary_index = 0
+				@unary_index = 0
+				next
+
 			end
-		end
 
-		final_new_nullaries = []
-		new_nullaries.each do |new_nullary_candidate|
-			final_new_nullaries << new_nullary_candidate unless @nullaries_chain.flatten.include? new_nullary_candidate
-		end
+			next unless @exploration_state == EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES
 
-		final_new_unaries = []
-		new_unaries.each do |new_unary_candidate|
-			final_new_unaries << new_unary_candidate unless @unaries_chain.flatten.include? new_unary_candidate
-		end
+			old_nullaries[@nullary_index..].each do |nullary|
+				new_unaries[@unary_index..].each do |unary|
+					commit_resulting_unaries_if_new(unary, nullary)
+					maybe_save_progress
 
-		@nullaries_chain << final_new_nullaries
-		@unaries_chain << final_new_unaries
-
-		@depth += 1
-
-		save
-
-		Time.now - start_time
-	end
-
-	def save
-		data = {
-			depth: @depth,
-			nullaries_chain: @nullaries_chain,
-			unaries_chain: @unaries_chain,
-			r: @r
-		}
-
-		File.write('explorer_data.json', data.to_json)
-		# File.binwrite('explorer_data.dat', Marshal.dump(self))
-	end
-
-	def evaluate_nullaries
-		nullaries.each do |nullary|
-			evaluate_nullary(nullary)
-		rescue MalformedNullaryStringError
+					@unary_index += 1
+				end
+				@nullary_index += 1
+			end
+			@exploration_state = EXPLORING_DONE
+			@nullary_index = 0
+			@unary_index = 0
 			next
 		end
 
-		nil
+		return unless @exploration_state == EXPLORING_DONE
+
+		@exploration_state = EXPLORING_READY
+		@depth += 1
+	end
+
+	def save_chains
+		data = {
+			nullaries_chain: @nullaries_chain,
+			unaries_chain: @unaries_chain
+		}
+
+		File.write(File.join(__dir__, 'explorer_data.json'), data.to_json)
+	end
+
+	def evaluate_candidate_nullaries(depth)
+		candidate_nullaries_file = File.open(File.join(__dir__, "candidate_nullaries_#{depth}.txt"))
+
+		until candidate_nullaries_file.zero?
+			nullary = file.gets.chomp
+			next if @evaluations.include?(nullary)
+
+			evaluation = evaluate_nullary(nullary)
+
+			@evaluations[nullary] = evaluation.to_s
+
+			equivalent_nullaries = @evaluations.select { |_, v| v == evaluation.to_s }.keys
+			min_discovered_length = equivalent_nullaries.map(&:length).min
+
+			@efficient_evaluations[nullary] = evaluation.to_s if evaluation.length < min_discovered_length
+
+			File.write(File.join(__dir__, "candidate_nullaries_#{depth}.txt"), candidate_nullaries_file.readlines.shift.join("\n"))
+		end
 	end
 
 	def evaluate_nullary(nullary, raw: false)
@@ -140,18 +197,8 @@ class Explorer
 
 		raise MalformedNullaryStringError(nullary) unless nullary.start_with?('R')
 
-		# puts 'Parsing Recursive Arguments'
-		# puts '-' * 32
 		arguments = nullary[2..-2].split_into_top_level_arguments
-		# puts 'Found top level arguments:'
-		# puts arguments
-		# puts '-' * 16
 		arguments[0] = unfreeze_unary(arguments[0])
-		# puts "Unary:    #{arguments[0]}"
-		# puts "Base:     #{arguments[1]}"
-		# puts "Countdown: #{arguments[2]}"
-		# puts '-' * 32
-		# puts "\n"
 
 		unary_evaluated = evaluate_unary(arguments[0])
 		base_evaluated = evaluate_nullary(arguments[1])
@@ -341,4 +388,48 @@ def interpolate_color(value)
 	b = (255 * (1 - normalized)).round
 
 	format('#%02X%02X%02X', r, 0, b)
+end
+
+def commit_candidate_nullary_if_new(nullary)
+	puts nullary
+	return if @evaluations.include?(nullary)
+
+	File.open(candidate_nullaries_file(@depth), 'a') do |f|
+		f.puts(nullary)
+	end
+end
+
+def commit_candidate_unary_if_new(unary)
+	return if @evaluations.include?(unary)
+
+	File.open(candidate_unaries_file(@depth), 'a') do |f|
+		f.puts(unary)
+	end
+end
+
+def commit_resulting_unaries_if_new(unary, nullary)
+	first_intermediate = "R(%,#{nullary},&)"
+	second_intermediate = "R(%,&,#{nullary})"
+	unary_frozen = unary.sub('*', '#')
+	first_new_unary = first_intermediate.sub('%', unary_frozen).sub('&', '*')
+	second_new_unary = second_intermediate.sub('%', unary_frozen).sub('&', '*')
+	commit_candidate_unary_if_new(first_new_unary)
+	commit_candidate_unary_if_new(second_new_unary)
+end
+
+def commit_resulting_nullary_if_new(unary, nullary)
+	commit_candidate_nullary_if_new(unary.sub('*', nullary))
+end
+
+def maybe_save_progress
+	@save_ticker += 1
+	save_progress if (@save_ticker % SAVE_MODULUS).zero?
+end
+
+def candidate_unaries_file(depth)
+	File.join(__dir__, "candidate_unaries_#{depth}.txt")
+end
+
+def candidate_nullaries_file(depth)
+	File.join(__dir__, "candidate_nullaries_#{depth}.txt")
 end

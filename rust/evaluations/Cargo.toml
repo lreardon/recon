@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-fst = { version = "0.4", features = ["levenshtein"] }
+# fst = { version = "0.4", features = ["levenshtein"] }
+fst = { version = "0.4" }
 levenshtein_automata = "0.2"

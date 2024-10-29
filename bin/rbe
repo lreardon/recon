@@ -1,0 +1,3 @@
+#! /bin/bash
+
+cargo build --release --manifest-path=rust/evaluations/Cargo.toml

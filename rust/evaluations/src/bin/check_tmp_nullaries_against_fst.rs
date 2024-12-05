@@ -1,17 +1,10 @@
-// Imports the `File` type into this scope and the entire `std::io` module.
-use std::collections::HashMap;
 use std::env;
-use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, BufWriter, Write};
-use serde_json::Value;
+use std::fs::{File};
+use std::io::{BufRead, BufReader};
 // use num_bigint::BigInt; // TODO: Revisit this once u64 things are stable.
-use std::str::FromStr;
-use fst::Streamer;
-
-
-// Imports the `SetBuilder` type from the `fst` module.
-// use fst::SetBuilder;
-use fst::{Map, MapBuilder};
+// use std::str::FromStr;
+use fst::{Map};
+// use fst::Streamer;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 

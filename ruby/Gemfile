@@ -4,8 +4,7 @@ ruby '3.3.3'
 source 'https://rubygems.org'
 
 gem 'debug', require: false
-gem 'gdbm'
-gem 'rubocop', '~> 1.60'
+gem 'rubocop', '~> 1.69', require: false
 
 gem 'sorbet', group: :development
 gem 'sorbet-runtime'
@@ -16,3 +15,10 @@ gem 'gruff'
 gem 'rbs'
 
 gem 'ruby-sfst'
+
+gem 'gdbm'
+
+gem 'coderay'
+gem 'colorize'
+gem 'readline'
+gem 'reline'

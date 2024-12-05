@@ -1,0 +1,3 @@
+#! /bin/bash
+
+irb -r ${PROJECT_ROOT}/ruby/explore.rb

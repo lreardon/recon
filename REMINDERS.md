@@ -4,6 +4,13 @@
 
 ## Current Task
 
-The task at hand is that of efficiently pruning and storing forms, in order to optimize the exploration process. To that end, we're making use of `fst`, a project for using finite state automata to store and efficiently search enormous collections of strings. For our purposes, we're most interested in a transducer, which ought to store the discovered strings along with their numerical values.
+Streamlining the exploration progress requires having a temporary file for newly found "candidate" expressions, and:
+	1) periodically checking if they're included already in our persistent storage
+	2) if they aren't, evaluating them
+	3) if their evaluation is efficient, adding them to the evaluations `fst`.
 
-The ultimate goal is actually dual to the construction of this transducer - we want a hash-like object pairing numerical quantities to the minimal length of their representations.
+To this end, we've been experimenting with creating fst files from txt and json files.
+
+I think it's enough to compile a list of 5000 nullaries, then check inclusion against our fst. If not included, we should evaluate them, and check the values against the fst.
+
+WE MUST AVOID EVALUATING NULLARIES THAT HAVE ALREADY BEEN EVALUATED.

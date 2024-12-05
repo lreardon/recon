@@ -242,3 +242,39 @@ R(^(#),1,^(^(1)))
 R(^(#),1,^(^(1))) = ^(^(^(1)))
 
 ^(^(^(1)))
+
+
+
+
+12/5/24
+
+One issue right now is I'm committing unaries to the evaluations db which is wrong.
+
+Also, I need to consolidate my persistent storage and tmp storage, and clearly distinguish between the two.
+
+
+To that end:
+
+Evaluations will be stored as `fst` objects:
+	fst/evaluations
+
+	Here we have the opportunity to create new ones for each depth, or for each session, and to give them semantic names. This is a good idea for "logging"
+	If we can name them properly, then we can do all the "progress tracking" in the names, and the exploration results to that point will be in the objects.
+	Then we could read the most recent file to initialize the explorer. This seems promising. So what would a good naming convention be? datetime is certainly important, though not the primary identifier.
+	data to include in the name:
+		datetime
+		depth
+		progress in depth:
+			exploration_phase
+			nullaries index
+			unaries index
+
+
+
+
+
+
+
+
+
+There should also be idempotence in the exploration, so in the event that a session gets whacked out, we can restart from last saved state and we can go from there without damaging the discovery objects. Thus we also need good progress tracking, perhaps a history of the sessions. In fact, this should be logged completely, for the history of the explorer. So an explorer needs a session_history object of some kind. Eventually. Not now.

@@ -32,14 +32,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let evaluations = Map::new(std::fs::read(evaluations_path).unwrap()).unwrap();
 
-	let mut stream = evaluations.keys();
-	let mut keys:Vec<String> = Vec::new();
-	while let Some(k) = stream.next() {
-    let key_string = String::from_utf8_lossy(k).into_owned();
-		keys.push(key_string);
-	}
-
-	println!("keys: {:?}", keys);
+	// let mut stream = evaluations.keys();
+	// let mut keys:Vec<String> = Vec::new();
+	// while let Some(k) = stream.next() {
+  //   let key_string = String::from_utf8_lossy(k).into_owned();
+	// 	keys.push(key_string);
+	// }
+	// println!("keys: {:?}", keys);
 
 	for line in lines {
 		println!("Does map contain '{}'? {}", line, evaluations.contains_key(&line));

@@ -1,14 +1,8 @@
-// Imports the `File` type into this scope and the entire `std::io` module.
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
-
-// Imports the `SetBuilder` type from the `fst` module.
-// use fst::SetBuilder;
 use fst::{Map, MapBuilder};
 use fst::Streamer;
-
-
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// -- initializing evaluations.fst and tmp.fst --

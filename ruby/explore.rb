@@ -14,15 +14,11 @@ puts chains
 
 $e = if File.exist?(chains_file_path) && File.exist?(progress_file_path)
 						Explorer.new(
-							evaluations: GDBM.new('evaluations/evaluations.db'),
-							efficient_evaluations: GDBM.new('evaluations/efficient_evaluations.db'),
 							progress:,
 							chains:
 						)
 					else
 						Explorer.new(
-							evaluations: GDBM.new('evaluations/evaluations.db'),
-							efficient_evaluations: GDBM.new('evaluations/efficient_evaluations.db'),
 							progress: Progress.new,
 							chains:
 						).save

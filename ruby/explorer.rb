@@ -14,6 +14,7 @@ require 'gruff'
 
 require_relative 'errors/malformed_nullary_string_error'
 require_relative 'models/progress'
+require_relative 'scripts/check_candidates'
 
 # A class for building new unary and nullary expressions.
 class Explorer
@@ -30,8 +31,6 @@ class Explorer
 	EXPLORING_DONE = :exploring_done
 
 	def initialize(
-		evaluations:,
-		efficient_evaluations:,
 		progress:,
 		chains:
 	)
@@ -43,8 +42,6 @@ class Explorer
 		@nullaries_chain = chains[:nullaries]
 		@unaries_chain = chains[:unaries]
 
-		@evaluations = evaluations
-		@efficient_evaluations = efficient_evaluations
 		@save_ticker = 0
 	end
 
@@ -56,19 +53,6 @@ class Explorer
 		@unaries_chain.flatten
 	end
 
-	def save_progress
-		progress_json = {
-			depth: @depth,
-			exploration_phase: @exploration_state,
-			nullary_index: @nullary_index,
-			unary_index: @unary_index
-		}
-		File.write(File.join(__dir__, 'progress.json'), progress_json.to_json)
-
-		# What we really need to do here is document our recent evaluations and merge them into our full evaluations, as fst objects.
-		# First step is to find our most recent evaluations.
-	end
-
 	def explore
 		@save_ticker = 0
 		new_nullaries = @nullaries_chain.last
@@ -77,22 +61,20 @@ class Explorer
 		new_unaries = @unaries_chain.last
 		# old_unaries = @unaries_chain[0..-2].flatten #? Not explicitly needed, as we pair new nullaries against all unaries
 
-		while @exploration_state != EXPLORING_DONE
-			if @exploration_state == EXPLORING_READY
-				# Ensure candidate nullaries and unaries files exist
-				File.write(candidate_nullaries_file(@depth), '') unless File.exist?(candidate_nullaries_file(@depth))
-				File.write(candidate_unaries_file(@depth), '') unless File.exist?(candidate_unaries_file(@depth))
-				File.write(candidate_nullaries_tmp_file, '') unless File.exist?(candidate_nullaries_tmp_file)
-				File.write(candidate_unaries_tmp_file, '') unless File.exist?(candidate_unaries_tmp_file)
-				@exploration_state = EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES
-				next
-			end
+		if @exploration_state == EXPLORING_READY
+			# Ensure candidate nullaries and unaries files exist
+			File.write(candidate_nullaries_tmp_file, '') unless File.exist?(candidate_nullaries_tmp_file)
+			File.write(candidate_unaries_tmp_file, '') unless File.exist?(candidate_unaries_tmp_file)
+			@exploration_state = EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES
+		end
 
+		while @exploration_state != EXPLORING_READY
+			puts '`'
 			if @exploration_state == EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES
 				new_nullaries[@nullary_index..].each do |nullary|
 					unaries[@unary_index..].each do |unary|
-						commit_resulting_nullary_if_new(unary, nullary)
-						maybe_save_progress
+						record_resulting_candidate_nullary(unary, nullary)
+						maybe_process_candidate_batches
 
 						@unary_index += 1
 					end
@@ -107,8 +89,8 @@ class Explorer
 			if @exploration_state == EXPLORING_NULLARIES__OLD_NULLARIES__NEW_UNARIES
 				old_nullaries[@nullary_index..].each do |nullary|
 					new_unaries[@unary_index..].each do |unary|
-						commit_resulting_nullary_if_new(unary, nullary)
-						maybe_save_progress
+						record_resulting_candidate_nullary(unary, nullary)
+						maybe_process_candidate_batches
 
 						@unary_index += 1
 					end
@@ -124,8 +106,8 @@ class Explorer
 			if @exploration_state == EXPLORING_UNARIES__NEW_NULLARIES__ALL_UNARIES
 				new_nullaries[@nullary_index..].each do |nullary|
 					unaries[@unary_index..].each do |unary|
-						commit_resulting_unaries_if_new(unary, nullary)
-						maybe_save_progress
+						record_resulting_candidate_unaries(unary, nullary)
+						maybe_process_candidate_batches
 
 						@unary_index += 1
 					end
@@ -138,85 +120,43 @@ class Explorer
 
 			end
 
-			next unless @exploration_state == EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES
+			if @exploration_state == EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES
+				old_nullaries[@nullary_index..].each do |nullary|
+					new_unaries[@unary_index..].each do |unary|
+						record_resulting_candidate_unaries(unary, nullary)
+						maybe_process_candidate_batches
 
-			old_nullaries[@nullary_index..].each do |nullary|
-				new_unaries[@unary_index..].each do |unary|
-					commit_resulting_unaries_if_new(unary, nullary)
-					maybe_save_progress
-
-					@unary_index += 1
+						@unary_index += 1
+					end
+					@nullary_index += 1
 				end
-				@nullary_index += 1
+				@exploration_state = EXPLORING_DONE
+				@nullary_index = 0
+				@unary_index = 0
+				next
 			end
-			@exploration_state = EXPLORING_DONE
-			@nullary_index = 0
-			@unary_index = 0
-			next
-		end
 
-		return unless @exploration_state == EXPLORING_DONE
+			next unless @exploration_state == EXPLORING_DONE
 
-		# (0..@depth).each do |i|
-		# 	File.open(candidate_nullaries_file(i)) do |f|
-		# 		f.each do |l|
-		# 			evaluate_nullary(l)
-		# 			# puts l
-		# 		end
-		# 	end
-		# end
+			@depth += 1
+			process_candidate_batches
+			update_chains
 
-		evaluate_candidate_nullaries(@depth)
-		@exploration_state = EXPLORING_READY
-		@depth += 1
-	end
-
-	# def save_chains
-	# 	data = {
-	# 		nullaries_chain: @nullaries_chain,
-	# 		unaries_chain: @unaries_chain
-	# 	}
-
-	# 	File.write(File.join(__dir__, 'explorer_data.json'), data.to_json)
-	# end
-
-	def evaluate_candidate_nullaries(depth)
-		candidate_nullaries_file = File.open(candidate_nullaries_file(depth))
-
-		until File.empty?(candidate_nullaries_file)
-			nullary = candidate_nullaries_file.gets
-			next if nullary.nil?
-			next if @evaluations.include?(nullary)
-
-			evaluation = evaluate_nullary(nullary)
-
-			@evaluations[nullary] = evaluation.to_s
-
-			equivalent_nullaries = @evaluations.select { |_, v| v == evaluation.to_s }
-			min_discovered_length = equivalent_nullaries.map(&:length).min
-
-			@efficient_evaluations[nullary] = evaluation.to_s if evaluation.length < min_discovered_length
-
-			File.write(candidate_nullaries_file(depth), candidate_nullaries_file.readlines.shift.join("\n"))
+			@exploration_state = EXPLORING_READY
 		end
 	end
 
-	def evaluate_nullary(nullary, raw: false)
-		puts "\nEvaluating nullary: #{nullary}\n\n"
-		if raw == false && @evaluations.include?(nullary)
-			puts 'Previously evaluated nullary'
-
-			return @evaluations[nullary].to_i
-		end
+	def evaluate_nullary(nullary)
+		# return @evaluations[nullary].to_i if raw == false && @evaluations.include?(nullary)
 
 		if nullary == '1'
 			evaluation = 1
-			@evaluations[nullary] = evaluation.to_s
+			# @evaluations[nullary] = evaluation.to_s
 			return evaluation
 		end
 		if nullary.start_with?('^')
 			evaluation = evaluate_unary('^(*)').call(evaluate_nullary(nullary[2..-2]))
-			@evaluations[nullary] = evaluation.to_s
+			# @evaluations[nullary] = evaluation.to_s
 			return evaluation
 		end
 
@@ -236,10 +176,7 @@ class Explorer
 			current_countdown -= 1
 		end
 
-		evaluation = current_value
-
-		@evaluations[nullary] = evaluation.to_s
-		evaluation
+		current_value
 	end
 
 	def evaluate_unary(unary)
@@ -373,90 +310,103 @@ class Explorer
 		g.write('evaluations.png')
 	end
 
-	def commit_candidate_nullary_if_new(nullary)
-		puts nullary
-		# TODO: I think this isn't robust enough.
-		return if @evaluations.include?(nullary)
-
-		File.open(candidate_nullaries_file(@depth), 'a') do |f|
-			f.puts(nullary)
-		end
-	end
-
-	def record_nullary_in_tmp_if_new(nullary)
-		return if check_nullaries_fst_for_nullary(nullary)
-
-		File.open(candidate_nullaries_tmp_file, 'a') do |f|
-			return nil if f.readlines.include?(nullary)
-
-			f.puts(nullary)
-		end
-	end
-
-	def record_unary_in_tmp_if_new(unary)
-		return if check_unaries_fst_for_unary(unary)
-
-		File.open(candidate_unaries_tmp_file, 'a') do |f|
-			return nil if f.readlines.include?(unary)
-
-			f.puts(unary)
-		end
-	end
-
-	def commit_candidate_unary_if_new(unary)
-		return if @evaluations.include?(unary)
-
-		File.open(candidate_unaries_file(@depth), 'a') do |f|
-			f.puts(unary)
-		end
-	end
-
-	def commit_resulting_unaries_if_new(unary, nullary)
+	def record_resulting_candidate_unaries(unary, nullary)
 		first_intermediate = "R(%,#{nullary},&)"
 		second_intermediate = "R(%,&,#{nullary})"
 		unary_frozen = unary.sub('*', '#')
 		first_new_unary = first_intermediate.sub('%', unary_frozen).sub('&', '*')
 		second_new_unary = second_intermediate.sub('%', unary_frozen).sub('&', '*')
-		commit_candidate_unary_if_new(first_new_unary)
-		commit_candidate_unary_if_new(second_new_unary)
+
+		File.open(candidate_unaries_tmp_file, 'a') do |f|
+			f.puts(first_new_unary)
+			f.puts(second_new_unary)
+		end
 	end
 
-	def commit_resulting_nullary_if_new(unary, nullary)
-		resulting_nullary = unary.sub('*', nullary)
-		commit_candidate_nullary_if_new(resulting_nullary)
+	def record_resulting_candidate_nullary(unary, nullary)
+		candidate_nullary = unary.sub('*', nullary)
+		File.open(candidate_nullaries_tmp_file, 'a') do |f|
+			f.puts(candidate_nullary)
+		end
 	end
 
-	def maybe_save_progress
+	def maybe_process_candidate_batches
 		@save_ticker += 1
-		save_progress if (@save_ticker % SAVE_MODULUS).zero?
+		process_candidate_batches if (@save_ticker % SAVE_MODULUS).zero?
+	end
+
+	def process_candidate_batches
+		save_progress
+		check_candidate_nullaries_against_fst
+		check_candidate_unaries_against_fst
+	end
+
+	def update_chains
+		# At this point we have explored all he nullaries at the most recent depth.
+		# The ones which were new have been saved to the candidate files.
+		# Now we need to evaluate the new candidate nullaries.
+		# Then we need to update the fst objects.
+		# Finally, and this should be the easiest, we need to update the chains on our explorer!
+
+		new_nullaries_with_evaluations = evaluate_nullaries_from_new_nullaries_txt
+		write_hash_to_file(new_nullaries_with_evaluations, new_nullaries_evaluated_file)
+		`#{ENV.fetch('PROJECT_ROOT', nil)}/rust/evaluations/target/release/merge_new_nullaries_evaluated_json_into_evaluations_fst`
+		`#{ENV.fetch('PROJECT_ROOT', nil)}/rust/evaluations/target/release/merge_new_unaries_evaluated_json_into_unaries_fst`
+		@nullaries_chain.append(File.readlines(new_nullaries_tmp_file).map(&:chomp))
+		@unaries_chain.append(File.readlines(new_unaries_tmp_file).map(&:chomp))
+
+		save_chains
+	end
+
+	def save_chains
+		puts 'SAVING CHAINS'
+
+		File.write(File.join(__dir__, 'chains.json'), JSON.pretty_generate({ unaries: @unaries_chain, nullaries: @nullaries_chain }))
+	end
+
+	def write_hash_to_file(hash, file)
+		File.write(file, hash.to_json)
+	end
+
+	def save_progress
+		Progress.new(
+			depth: @depth,
+			exploration_state: @exploration_state,
+			nullary_index: @nullary_index,
+			unary_index: @unary_index
+		).save
+	end
+
+	def evaluate_nullaries_from_new_nullaries_txt
+		new_nullaries = File.readlines(candidate_nullaries_tmp_file).map(&:chomp)
+		# TODO: This step will surely lag before long. We need to evaluate nullaries in batches.
+		new_nullaries.each_with_object({}) do |nullary, hash|
+			hash[nullary] = evaluate_nullary(nullary)
+		end
 	end
 
 	def candidate_dir
-		File.join(__dir__, 'candidates')
-	end
-
-	def candidate_nullaries_dir
-		File.join(candidate_dir, 'nullaries')
-	end
-
-	def candidate_unaries_dir
-		File.join(candidate_dir, 'unaries')
-	end
-
-	def candidate_nullaries_file(depth)
-		File.join(candidate_nullaries_dir, "cn_#{depth}.txt")
-	end
-
-	def candidate_unaries_file(depth)
-		File.join(candidate_unaries_dir, "cu_#{depth}.txt")
+		File.join(ENV.fetch('PROJECT_ROOT', nil), 'candidates')
 	end
 
 	def candidate_nullaries_tmp_file
-		File.join(candidate_dir, 'tmp', 'nullaries.txt')
+		File.join(candidate_dir, 'nullaries.txt')
 	end
 
 	def candidate_unaries_tmp_file
-		File.join(candidate_dir, 'tmp', 'nullaries.txt')
+		File.join(candidate_dir, 'unaries.txt')
+	end
+
+	def new_nullaries_tmp_file
+		File.join(candidate_dir, 'new_nullaries.txt')
+	end
+
+	def new_unaries_tmp_file
+		File.join(candidate_dir, 'new_unaries.txt')
+	end
+
+	def new_nullaries_evaluated_file
+		File.join(candidate_dir, 'new_nullaries_evaluated.json')
 	end
 end
 

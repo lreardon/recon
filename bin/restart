@@ -1,0 +1,11 @@
+#! /bin/bash
+
+${PROJECT_ROOT}/rust/evaluations/target/release/initialize_evaluations_fst
+${PROJECT_ROOT}/rust/evaluations/target/release/initialize_unaries_fst
+cp ${PROJECT_ROOT}/ruby/chains_initial.json ${PROJECT_ROOT}/ruby/chains.json
+cp ${PROJECT_ROOT}/ruby/progress_initial.json ${PROJECT_ROOT}/ruby/progress.json
+truncate -s 0 ${PROJECT_ROOT}/candidates/unaries.txt
+truncate -s 0 ${PROJECT_ROOT}/candidates/nullaries.txt
+truncate -s 0 ${PROJECT_ROOT}/candidates/new_unaries.txt
+truncate -s 0 ${PROJECT_ROOT}/candidates/new_nullaries.txt
+truncate -s 0 ${PROJECT_ROOT}/candidates/new_nullaries_evaluated.json

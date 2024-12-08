@@ -278,3 +278,14 @@ Evaluations will be stored as `fst` objects:
 
 
 There should also be idempotence in the exploration, so in the event that a session gets whacked out, we can restart from last saved state and we can go from there without damaging the discovery objects. Thus we also need good progress tracking, perhaps a history of the sessions. In fact, this should be logged completely, for the history of the explorer. So an explorer needs a session_history object of some kind. Eventually. Not now.
+
+
+
+
+
+In the step of checking candidate nullaries for inclusion, how do I want to proceed?
+
+Perhaps the best solution is to:
+
+have candidate file
+check over all candidates and create a new file, "new_nullaries.txt"

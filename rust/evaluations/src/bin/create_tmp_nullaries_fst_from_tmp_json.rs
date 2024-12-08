@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let project_root = env::var("PROJECT_ROOT").unwrap();
 	let _nullaries_tmp_fst_path = format!("{}/fst/tmp/nullaries.fst", project_root);
 
-	let nullaries_tmp_json_path = format!("{}/candidates/tmp/nullaries.json", project_root);
+	let nullaries_tmp_json_path = format!("{}/candidates/nullaries.json", project_root);
 	let file = File::open(nullaries_tmp_json_path)?;
 	let reader = BufReader::new(file);
 

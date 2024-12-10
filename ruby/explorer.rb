@@ -69,70 +69,49 @@ class Explorer
 		end
 
 		while @exploration_state != EXPLORING_READY
-			puts '`'
 			if @exploration_state == EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES
-				new_nullaries[@nullary_index..].each do |nullary|
-					unaries[@unary_index..].each do |unary|
+				new_nullaries.each do |nullary|
+					unaries.each do |unary|
 						record_resulting_candidate_nullary(unary, nullary)
 						maybe_process_candidate_batches
-
-						@unary_index += 1
 					end
-					@nullary_index += 1
 				end
 				@exploration_state = EXPLORING_NULLARIES__OLD_NULLARIES__NEW_UNARIES
-				@nullary_index = 0
-				@unary_index = 0
 				next
 			end
 
 			if @exploration_state == EXPLORING_NULLARIES__OLD_NULLARIES__NEW_UNARIES
-				old_nullaries[@nullary_index..].each do |nullary|
-					new_unaries[@unary_index..].each do |unary|
+				old_nullaries.each do |nullary|
+					new_unaries.each do |unary|
 						record_resulting_candidate_nullary(unary, nullary)
 						maybe_process_candidate_batches
-
-						@unary_index += 1
 					end
-					@nullary_index += 1
 				end
 				@exploration_state = EXPLORING_UNARIES__NEW_NULLARIES__ALL_UNARIES
-				@nullary_index = 0
-				@unary_index = 0
 				next
 
 			end
 
 			if @exploration_state == EXPLORING_UNARIES__NEW_NULLARIES__ALL_UNARIES
-				new_nullaries[@nullary_index..].each do |nullary|
-					unaries[@unary_index..].each do |unary|
+				new_nullaries.each do |nullary|
+					unaries.each do |unary|
 						record_resulting_candidate_unaries(unary, nullary)
 						maybe_process_candidate_batches
-
-						@unary_index += 1
 					end
-					@nullary_index += 1
 				end
 				@exploration_state = EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES
-				@nullary_index = 0
-				@unary_index = 0
 				next
 
 			end
 
 			if @exploration_state == EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES
-				old_nullaries[@nullary_index..].each do |nullary|
-					new_unaries[@unary_index..].each do |unary|
+				old_nullaries.each do |nullary|
+					new_unaries.each do |unary|
 						record_resulting_candidate_unaries(unary, nullary)
 						maybe_process_candidate_batches
-
-						@unary_index += 1
 					end
-					@nullary_index += 1
 				end
 				@exploration_state = EXPLORING_DONE
-				@nullary_index = 0
-				@unary_index = 0
 				next
 			end
 
@@ -140,7 +119,7 @@ class Explorer
 
 			@depth += 1
 			process_candidate_batches
-			update_chains
+			update_fst_and_chains
 
 			@exploration_state = EXPLORING_READY
 		end
@@ -341,7 +320,7 @@ class Explorer
 		check_candidate_unaries_against_fst
 	end
 
-	def update_chains
+	def update_fst_and_chains
 		# At this point we have explored all he nullaries at the most recent depth.
 		# The ones which were new have been saved to the candidate files.
 		# Now we need to evaluate the new candidate nullaries.
@@ -355,7 +334,18 @@ class Explorer
 		@nullaries_chain.append(File.readlines(new_nullaries_tmp_file).map(&:chomp))
 		@unaries_chain.append(File.readlines(new_unaries_tmp_file).map(&:chomp))
 
+		clear_tmp_files
+
 		save_chains
+	end
+
+	def clear_tmp_files
+		Dir.foreach(candidate_dir) do |file_name|
+			next if filename == '.' || filename == '..'
+
+			file_path = File.join(candidate_dir, file_name)
+			File.open(file_path, 'w')
+		end
 	end
 
 	def save_chains

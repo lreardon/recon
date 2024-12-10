@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'debug/open_nonstop'
 require_relative 'terminal'
 require_relative 'explorer'
 require_relative 'models/progress'
@@ -10,7 +11,7 @@ progress_file_path = File.join(__dir__, 'progress.json')
 progress = Progress.from_json(JSON.parse(File.read(progress_file_path), symbolize_names: true))
 chains = JSON.parse(File.read(chains_file_path), symbolize_names: true)
 
-puts chains
+# puts chains
 
 $e = if File.exist?(chains_file_path) && File.exist?(progress_file_path)
 						Explorer.new(

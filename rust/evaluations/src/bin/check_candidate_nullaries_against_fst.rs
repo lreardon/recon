@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -16,15 +17,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let file = File::open(nullaries_tmp_txt_path)?;
     let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
+    let candidate_nullaries: HashSet<String> = reader.lines().collect::<Result<HashSet<_>, _>>()?;
 
-    let evaluations = Map::new(std::fs::read(evaluations_path).unwrap()).unwrap();
+    let nullaries = Map::new(std::fs::read(evaluations_path).unwrap()).unwrap();
 
     let mut new_nullaries_file = File::create(new_nullaries_tmp_txt_path)?;
 
-    for line in lines {
-        if !evaluations.contains_key(&line) {
-            write!(new_nullaries_file, "{}\n", line)?;
+    for candidate in candidate_nullaries {
+        if !nullaries.contains_key(&candidate) {
+            write!(new_nullaries_file, "{}\n", candidate)?;
         }
     }
 

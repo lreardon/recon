@@ -29,7 +29,6 @@ class Progress
 	end
 
 	def save
-		puts 'SAVING PROGRESS'
 		pretty_json = JSON.pretty_generate(to_json)
 		puts pretty_json
 		File.write(File.join(__dir__, 'progress.json'), pretty_json)

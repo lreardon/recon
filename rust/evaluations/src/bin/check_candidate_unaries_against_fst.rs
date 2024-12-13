@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -16,16 +17,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let file = File::open(unaries_tmp_txt_path)?;
     let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
+    let candidate_unaries: HashSet<String> = reader.lines().collect::<Result<HashSet<_>, _>>()?;
 
-    let evaluations = Set::new(std::fs::read(unaries_path).unwrap()).unwrap();
+    let unaries = Set::new(std::fs::read(unaries_path).unwrap()).unwrap();
 
     let mut new_unaries_file = File::create(new_unaries_tmp_txt_path)?;
 
-    for line in lines {
-        // println!("Does map contain '{}'? {}", line, evaluations.contains_key(&line));
-        if !evaluations.contains(&line) {
-            write!(new_unaries_file, "{}\n", line)?;
+    for candidate in candidate_unaries {
+        if !unaries.contains(&candidate) {
+            write!(new_unaries_file, "{}\n", candidate)?;
         }
     }
 

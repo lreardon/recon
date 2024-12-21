@@ -1,6 +1,6 @@
 {
-  "depth": 5,
+  "depth": 4,
   "nullary_index": 0,
   "unary_index": 0,
-  "exploration_state": "exploring_nullaries_new_nullaries_all_unaries"
+  "exploration_state": "exploring_done"
 }

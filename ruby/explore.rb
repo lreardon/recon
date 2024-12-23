@@ -2,7 +2,7 @@
 
 require 'debug/open_nonstop'
 require_relative 'terminal'
-require_relative 'explorer'
+require_relative 'models/explorer'
 require_relative 'models/progress'
 
 chains_file_path = File.join(__dir__, 'chains.json')

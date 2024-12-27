@@ -5,7 +5,8 @@ edition = "2021"
 
 [dependencies]
 # fst = { version = "0.4", features = ["levenshtein"] }
-fst = { version = "0.4" }
+fst = "0.4"
+lazy_static = "1.4"
 plotters = "0.3"
 levenshtein_automata = "0.2"
 serde = { version = "1.0", features = ["derive"] }

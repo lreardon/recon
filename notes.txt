@@ -289,3 +289,7 @@ Perhaps the best solution is to:
 
 have candidate file
 check over all candidates and create a new file, "new_nullaries.txt"
+
+
+
+To create a good visual representation, we'll want to compress the space between points as the quantities get larger. Something logarithmic or exponential or logistic.

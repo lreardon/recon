@@ -16,4 +16,8 @@
 		"identifier": "custom",
 	},
 	"rubyLsp.customRubyCommand": "frum init",
+	"[plaintext]": {
+		"editor.wordWrap": "wordWrapColumn",
+		"editor.wordWrapColumn": 80
+	}
 }

@@ -1,6 +1,6 @@
 {
-  "depth": 4,
-  "nullary_index": 0,
-  "unary_index": 0,
-  "exploration_state": "exploring_done"
+	"depth": 1,
+	"nullary_index": 0,
+	"unary_index": 0,
+	"exploration_phase_batch": 0
 }

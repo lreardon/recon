@@ -8,7 +8,7 @@ require 'coderay'  # For more advanced syntax highlighting
 
 class InteractiveTerminal
 	def initialize(options = {})
-		@history_file = options[:history_file] || File.join(Dir.home, '.ruby_terminal_history')
+		@history_file = options[:history_file] || File.join(Dir.home, 'models/terminal/.command_history')
 		@max_history = options[:max_history] || 1000
 		@prompt = options[:prompt] || '> '
 		@binding = binding

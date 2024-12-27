@@ -12,17 +12,21 @@ require 'json'
 require 'gruff'
 require 'benchmark'
 
-require_relative 'errors/malformed_nullary_string_error'
-require_relative 'models/progress'
-require_relative 'scripts/check_candidates'
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/errors/malformed_nullary_string_error"
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/models/progress"
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/models/evaluator"
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/scripts/check_candidates"
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/extensions/string"
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/extensions/array"
+# require "#{ENV.fetch('PROJECT_ROOT')}/ruby/scripts/evaluations_fst"
 
 # A class for building new unary and nullary expressions.
 class Explorer
 	include Benchmark
-	attr_accessor :depth
+	attr_accessor :depth, :evaluator
 	attr_reader :nullaries_chain, :unaries_chain, :evaluations
 
-	SAVE_MODULUS = 20_000
+	SAVE_MODULUS = 10_000
 
 	EXPLORING_READY = :exploring_ready
 	EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES = :exploring_nullaries_new_nullaries_all_unaries
@@ -35,6 +39,7 @@ class Explorer
 		progress:,
 		chains:
 	)
+		@evaluator = Evaluator.new
 		@depth = progress.depth
 		@exploration_state = EXPLORING_READY
 		@nullary_index = progress.nullary_index
@@ -44,18 +49,11 @@ class Explorer
 		@unaries_chain = chains[:unaries]
 
 		@save_ticker = 0
+		@exploration_phase_length = 0
+		@exploration_phase_batch = progress.exploration_phase_batch
 	end
 
-	# def nullaries
-	# 	@nullaries_chain[0..@depth - 1].flatten
-	# end
-
-	# def unaries
-	# 	@unaries_chain[0..@depth - 1].flatten
-	# end
-
 	def explore
-		@save_ticker = 0
 		old_nullaries = @nullaries_chain[0..@depth - 2].flatten
 		new_nullaries = @nullaries_chain[@depth - 1]
 
@@ -74,169 +72,78 @@ class Explorer
 		end
 
 		while @exploration_state != EXPLORING_READY
-			puts @exploration_state.upcase
-
+			@save_ticker = 0
+			phase_starting_index = @exploration_phase_batch * SAVE_MODULUS
+			
 			if @exploration_state == EXPLORING_NULLARIES__NEW_NULLARIES__ALL_UNARIES
-				puts new_nullaries.length * unaries.length
+				outer_loop = new_nullaries
+				inner_loop = unaries
+
+				# @exploration_phase_length = outer_loop.length * inner_loop.length
+
+				# nullaries_starting_index = phase_starting_index // inner_loop.length
+				# unaries_starting_index = phase_starting_index % inner_loop.length
+
 				new_nullaries.each do |nullary|
 					unaries.each do |unary|
 						record_resulting_candidate_nullary(unary, nullary)
-						maybe_process_candidate_batches
+						maybe_process_candidate_batch
 					end
 				end
+				process_candidate_batch
 				@exploration_state = EXPLORING_NULLARIES__OLD_NULLARIES__NEW_UNARIES
+				@exploration_phase_batch = 0
 				next
 			end
 
 			if @exploration_state == EXPLORING_NULLARIES__OLD_NULLARIES__NEW_UNARIES
-				puts old_nullaries.length * new_unaries.length
+				@exploration_phase_length = old_nullaries.length * new_unaries.length
 				old_nullaries.each do |nullary|
 					new_unaries.each do |unary|
 						record_resulting_candidate_nullary(unary, nullary)
-						maybe_process_candidate_batches
+						maybe_process_candidate_batch
 					end
 				end
+				process_candidate_batch
 				@exploration_state = EXPLORING_UNARIES__NEW_NULLARIES__ALL_UNARIES
+				@exploration_phase_batch = 0
 				next
 
 			end
 
 			if @exploration_state == EXPLORING_UNARIES__NEW_NULLARIES__ALL_UNARIES
-				puts new_nullaries.length * unaries.length
 				new_nullaries.each do |nullary|
 					unaries.each do |unary|
 						record_resulting_candidate_unaries(unary, nullary)
-						maybe_process_candidate_batches
+						maybe_process_candidate_batch
 					end
 				end
+				process_candidate_batch
 				@exploration_state = EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES
+				@exploration_phase_batch = 0
 				next
 
 			end
 
 			if @exploration_state == EXPLORING_UNARIES__OLD_NULLARIES__NEW_UNARIES
-				puts old_nullaries.length * new_unaries.length
 				old_nullaries.each do |nullary|
 					new_unaries.each do |unary|
 						record_resulting_candidate_unaries(unary, nullary)
-						maybe_process_candidate_batches
+						maybe_process_candidate_batch
 					end
 				end
+				process_candidate_batch
 				@exploration_state = EXPLORING_DONE
+				@exploration_phase_batch = 0
 				next
 			end
 
 			next unless @exploration_state == EXPLORING_DONE
 
-			process_candidate_batches
-
+			# process_candidate_batch # Not necessary if we process batches at the end of each phase
 			@depth += 1
-
 			@exploration_state = EXPLORING_READY
 		end
-	end
-
-	def evaluate_nullary(nullary)
-		if nullary == '1'
-			evaluation = 1
-			return evaluation
-		end
-		if nullary.start_with?('^')
-			evaluation = evaluate_unary('^(*)').call(evaluate_nullary(nullary[2..-2]))
-			return evaluation
-		end
-
-		raise MalformedNullaryStringError(nullary) unless nullary.start_with?('R')
-
-		arguments = nullary[2..-2].split_into_top_level_arguments
-		arguments[0] = unfreeze_unary(arguments[0])
-
-		unary_evaluated = evaluate_unary(arguments[0])
-		base_evaluated = evaluate_nullary(arguments[1])
-		countdown_evaluated = evaluate_nullary(arguments[2])
-
-		current_value = base_evaluated
-		current_countdown = countdown_evaluated
-		while current_countdown.positive?
-			current_value = unary_evaluated.call(current_value)
-			current_countdown -= 1
-		end
-
-		current_value
-	end
-
-	def evaluate_unary(unary)
-		# puts "Evaluating unary: #{unary}"
-		return ->(n) { n } if unary == '*'
-
-		if unary.start_with?('^')
-			unary_innards = unary[2..-2]
-			# puts 'Innards'
-			# puts unary_innards
-			innards_evaluated = evaluate_unary(unary_innards)
-			return lambda { |n|
-											innards_evaluated.call(n) + 1
-										}
-		end
-
-		raise MalformedNullaryStringError(nullary) unless unary.start_with?('R')
-
-		# puts '-- Is Recursive --'
-		arguments = unary[2..-2].split_into_top_level_arguments
-		arguments[0] = unfreeze_unary(arguments[0])
-		# puts arguments
-		# puts '-' * 18
-
-		unary_operator = evaluate_unary(arguments[0])
-
-		if arguments[1] == '*'
-			func = lambda { |n|
-				initial_value = evaluate_nullary(arguments[2])
-				countdown = n
-
-				working_value = initial_value
-				while countdown.positive?
-					working_value = unary_operator.call(working_value)
-					countdown -= 1
-				end
-
-				working_value
-			}
-			return func
-		end
-
-		raise "#{unary} is not a valid unary expression." unless arguments[2] == '*'
-
-		lambda { |n|
-			initial_value = n
-			countdown = evaluate_nullary(arguments[1])
-
-			working_value = initial_value
-			while countdown.positive?
-				working_value = unary_operator.call(working_value)
-				countdown -= 1
-			end
-
-			working_value
-		}
-	end
-
-	def unfreeze_unary(unary)
-		return '*' if unary == '#'
-		return "^(#{unfreeze_unary(unary[2..-2])})" if unary.start_with?('^')
-		raise "String #{unary} does not correspond to a unary expression" unless unary.start_with?('R')
-
-		arguments = unary[2..-2].split_into_top_level_arguments
-		# puts '-' * 16
-		# puts 'Unary top-level arguments:'
-		# puts arguments
-		# puts '-' * 16
-		first_nullary_input_argument = arguments[1]
-		second_nullary_input_argument = arguments[2]
-		return "R(#{arguments[0]},*,#{second_nullary_input_argument})" if first_nullary_input_argument == '#'
-		raise "String #{unary} does not correspond to a unary expression" unless second_nullary_input_argument == '#'
-
-		"R(#{arguments[0]},#{first_nullary_input_argument},*)"
 	end
 
 	def create_evaluation_visualization
@@ -301,17 +208,18 @@ class Explorer
 		end
 	end
 
-	def maybe_process_candidate_batches
+	def maybe_process_candidate_batch
 		@save_ticker += 1
-		process_candidate_batches if (@save_ticker % SAVE_MODULUS).zero?
+		process_candidate_batch if (@save_ticker % SAVE_MODULUS).zero?
 	end
-
-	def process_candidate_batches
+	
+	def process_candidate_batch
 		check_candidates_against_fst
 		update_fst
 		update_chains
 		record_progress
-		# clear_candidate_files
+		clear_candidate_files
+		@exploration_phase_batch += 1
 		puts ''
 		puts ''
 	end
@@ -324,13 +232,6 @@ class Explorer
 	end
 
 	def update_fst
-		# At this point in the exploration process, we've filled out a new batch of candidate nullaries and/or unaries.
-		# If we have nullaries, we'll need to evaluate them.
-		# Then we need to update the fst objects.
-		# Finally, and this should be the easiest, we need to update the chains on our explorer.
-		# Something was wrong with the way we were updating the chains - it was resulting in bad looping in the exploration process.
-		# That said, the current implementation is resulting in a lot of redundant work.
-
 		new_nullaries_with_evaluations = evaluate_nullaries_from_new_nullaries_txt
 		write_hash_to_file(new_nullaries_with_evaluations, new_nullaries_evaluated_file)
 
@@ -343,12 +244,14 @@ class Explorer
 	end
 
 	def update_chains
-		@nullaries_chain[@depth].concat(File.readlines(new_nullaries_tmp_file).map(&:chomp))
-		@unaries_chain[@depth].concat(File.readlines(new_unaries_tmp_file).map(&:chomp))
+		@nullaries_chain[@depth].concat(File.readlines(new_nullaries_tmp_file).map(&:chomp)).uniq
+		@unaries_chain[@depth].concat(File.readlines(new_unaries_tmp_file).map(&:chomp)).uniq
 		save_chains
 	end
 
 	def clear_candidate_files
+		# File.open(candidate_nullaries_tmp_file, 'w').close
+		# File.open(candidate_unaries_tmp_file, 'w').close
 		Dir.foreach(candidate_dir) do |file_name|
 			next if ['.', '..'].include?(file_name)
 
@@ -369,31 +272,31 @@ class Explorer
 		Progress.new(
 			depth: @depth,
 			exploration_state: @exploration_state,
+			exploration_phase_batch: @exploration_phase_batch,
 			nullary_index: @nullary_index,
-			unary_index: @unary_index
+			unary_index: @unary_index,
 		).save
 	end
 
 	def evaluate_nullaries_from_new_nullaries_txt
-		new_nullaries = File.readlines(candidate_nullaries_tmp_file).map(&:chomp)
-
-		# TODO: This step will surely lag before long. We need to evaluate nullaries in batches.
+		new_nullaries = File.readlines(candidate_nullaries_tmp_file).map(&:chomp).uniq
 		evaluations = {}
 		if new_nullaries.length.positive?
-			Benchmark.benchmark(CAPTION, 40, FORMAT) do |x|
-				x.report("EVALUATING #{new_nullaries.length} NULLARIES") do
 					evaluations = new_nullaries.each_with_object({}).with_index do |(nullary, hash), index|
-						puts "#{index}/#{new_nullaries.length}"
 						evaluation_time = Benchmark.realtime do
-							hash[nullary] = evaluate_nullary(nullary)
+							puts "Depth #{@depth} -- #{@exploration_state} -- #{(@exploration_phase_batch * SAVE_MODULUS) + index + 1} of at most #{@exploration_phase_length} -- #{nullary}"
+							hash[nullary] = evaluate(nullary)
 						end
-						puts "Evaluation of #{nullary} took #{evaluation_time} seconds." if evaluation_time > 1
+						# puts "Evaluation of #{nullary} took #{evaluation_time} seconds -- #{hash[nullary]}"
+						# puts ""
 					end
-				end
-			end
 		end
 
 		evaluations
+	end
+
+	def evaluate(nullary)
+		@evaluator.evaluate_nullary(nullary)
 	end
 
 	def candidate_dir
@@ -419,38 +322,26 @@ class Explorer
 	def new_nullaries_evaluated_file
 		File.join(candidate_dir, 'new_nullaries_evaluated.json')
 	end
-end
 
-# Override String with useful helpers.
-class String
-	def sub_2nd(char, replacement)
-		dup.tap { |s| s[s.index(char, s.index(char) + 1)] = replacement if s.index(char, s.index(char) + 1) }
-	end
+	def double_iter_with_start_index(outer_array:, inner_array:, starting_index:)
+		outer_array_start_index = starting_index.div(inner_array.length)
+		inner_array_start_index = starting_index % inner_array.length
 
-	def split_into_top_level_arguments
-		arguments = []
-		current_argument = 0
-
-		depth = 0
-		each_char do |char|
-			arguments.append('') until arguments.length > current_argument
-			if depth.zero? && char == ','
-				current_argument += 1
-				next
+		outer_array[outer_array_start_index..-1].each do |outer_element|
+			inner_array[inner_array_start_index..-1].each do |inner_element|
+				yield outer_element, inner_element
 			end
-			arguments[current_argument] += char
-			depth += 1 if char == '('
-			depth -= 1 if char == ')'
+			inner_array_start_index = 0
 		end
 
-		arguments
+		nil
 	end
-end
 
-class Array
-	def index_in_range?(index)
-		index >= 0 && index < length
-	end
+	# def print_x_to_99(x)
+	# 	double_iter_with_start_index(outer_array: (0...10).to_a, inner_array: (0...10).to_a, starting_index: x) do |tens, ones|
+	# 		puts 10 * tens + ones
+	# 	end
+	# end
 end
 
 def interpolate_color(value)
@@ -466,4 +357,12 @@ def interpolate_color(value)
 	b = (255 * (1 - normalized)).round
 
 	format('#%02X%02X%02X', r, 0, b)
+end
+
+class Integer
+  def self.try_parse(str)
+    Integer(str)
+  rescue ArgumentError, TypeError
+    nil
+  end
 end

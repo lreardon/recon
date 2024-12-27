@@ -1,0 +1,3 @@
+#! /bin/bash
+
+${PROJECT_ROOT}/rust/evaluations/target/release/query_evaluations_fst "$1"

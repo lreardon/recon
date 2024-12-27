@@ -9,7 +9,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let evaluations_path = format!("{}/fst/evaluations.fst", project_root);
     let evaluations_file_handle = File::create(evaluations_path)?;
     let buffered_writer = BufWriter::new(evaluations_file_handle);
-    let builder = MapBuilder::new(buffered_writer)?;
+    let mut builder = MapBuilder::new(buffered_writer)?;
+    builder.insert("1", 1)?;
     let _ = builder.finish();
 
     return Ok(());

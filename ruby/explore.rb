@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
 require 'debug/open_nonstop'
-require_relative 'terminal'
-require_relative 'models/explorer'
-require_relative 'models/progress'
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/models/terminal/interactive_terminal"
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/models/explorer"
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/models/progress"
+require "#{ENV.fetch('PROJECT_ROOT')}/ruby/scripts/evaluations_fst"
 
-chains_file_path = File.join(__dir__, 'chains.json')
-progress_file_path = File.join(__dir__, 'progress.json')
+chains_file_path = "#{ENV.fetch('PROJECT_ROOT')}/ruby/models/chains.json"
+progress_file_path = "#{ENV.fetch('PROJECT_ROOT')}/ruby/models/progress.json"
 
 progress = Progress.from_json(JSON.parse(File.read(progress_file_path), symbolize_names: true))
 chains = JSON.parse(File.read(chains_file_path), symbolize_names: true)
@@ -39,11 +40,24 @@ instructions = <<~INSTRUCTIONS
 
 INSTRUCTIONS
 
+# puts "Loading evaluations..."
+# Benchmark.benchmark(CAPTION, 40, FORMAT) do |x|
+# 	x.report('Loaded Evaluations') {load_evaluations_fst}
+# end
+# puts "Done"
+
 puts instructions
 
 terminal = InteractiveTerminal.new(
-	history_file: '.custom_history',
+	history_file: "#{ENV.fetch('PROJECT_ROOT')}/ruby/models/terminal/.command_history",
 	max_history: 500,
 	prompt: 'ruby> '
 )
+
+trap("SIGINT") do
+  puts "Cleaning up..."
+  # Place your cleanup code here
+  exit
+end
+
 terminal.start

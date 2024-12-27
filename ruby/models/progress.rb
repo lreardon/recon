@@ -1,13 +1,14 @@
 # frozen_string_literal: true
 
 class Progress
-	attr_reader :depth, :nullary_index, :unary_index
+	attr_reader :depth, :nullary_index, :unary_index, :exploration_state, :exploration_phase_batch
 
-	def initialize(depth: 1, exploration_state: :exploration_ready, nullary_index: 0, unary_index: 0)
+	def initialize(depth: 1, exploration_state: :exploration_ready, nullary_index: 0, unary_index: 0, exploration_phase_batch: 0)
 		@depth = depth
 		@nullary_index = nullary_index
 		@unary_index = unary_index
 		@exploration_state = exploration_state
+		@exploration_phase_batch = exploration_phase_batch
 	end
 
 	def self.from_json(json)
@@ -15,7 +16,8 @@ class Progress
 			depth: json[:depth],
 			nullary_index: json[:nullary_index],
 			unary_index: json[:unary_index],
-			exploration_state: json[:exploration_state]
+			exploration_state: json[:exploration_state],
+			exploration_phase_batch: json[:exploration_phase_batch]
 		)
 	end
 
@@ -24,7 +26,8 @@ class Progress
 			depth: @depth,
 			nullary_index: @nullary_index,
 			unary_index: @unary_index,
-			exploration_state: @exploration_state
+			exploration_state: @exploration_state,
+			exploration_phase_batch: @exploration_phase_batch
 		}
 	end
 

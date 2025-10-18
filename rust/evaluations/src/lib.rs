@@ -1,1 +1,1 @@
-pub mod fst_utils;
+pub mod utils;

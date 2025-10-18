@@ -1,6 +1,6 @@
-use evaluations::fst_utils::get_evaluations_fst;
+use evaluations::utils::loaders::load_evaluations;
 
 fn main() {
-    let fst = get_evaluations_fst();
+    let fst = load_evaluations();
     println!("Loaded Evaluations. Length {}", fst.len());
 }

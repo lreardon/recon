@@ -6,10 +6,9 @@ use std::io::{BufRead, BufReader};
 // use std::str::FromStr;
 use std::io::Write;
 
-mod utils;
+use evaluations::utils::fst_inclusion::{fst_contains_nullary, NullaryAndFst};
+use evaluations::utils::loaders::{load_file, load_fst_map, LocalPath};
 use std::sync::Arc;
-use utils::fst_inclusion::{fst_contains_nullary, NullaryAndFst};
-use utils::loaders::{load_file, load_fst_map, LocalPath};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let project_root: String = env::var("PROJECT_ROOT").unwrap();

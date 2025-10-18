@@ -1,6 +1,7 @@
 use std::env;
 use std::process;
-use evaluations::fst_utils::get_evaluations_fst;
+
+use evaluations::utils::loaders::load_evaluations;
 
 fn main() {
     // Get the string to check from command line arguments
@@ -12,8 +13,8 @@ fn main() {
     }
 
     let query = &args[1];
-    let fst = get_evaluations_fst();
-    
+    let fst = load_evaluations();
+
     // Note: get() returns an Option<u64> for Map
     match fst.get(query.as_bytes()) {
         Some(value) => println!("{}", value),

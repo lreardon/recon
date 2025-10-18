@@ -1,5 +1,3 @@
-use std::env;
-use std::process;
 use evaluations::fst_utils::get_evaluations_fst;
 
 fn main() {

@@ -19,5 +19,8 @@
 	"[plaintext]": {
 		"editor.wordWrap": "wordWrapColumn",
 		"editor.wordWrapColumn": 80
-	}
+	},
+	"rust-analyzer.linkedProjects": [
+        "./rust/evaluations/Cargo.toml",
+    ],
 }

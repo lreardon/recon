@@ -8,7 +8,9 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let project_root = env::var("PROJECT_ROOT").unwrap();
+    // let project_root = env::var("PROJECT_ROOT").unwrap();
+    let project_root =
+        env::var("PROJECT_ROOT").map_err(|_| "PROJECT_ROOT environment variable not set")?;
 
     let unaries_fst_path = format!("{}/fst/unaries.fst", project_root);
     let tmp_path = format!("{}/fst/tmp_u.fst", project_root);

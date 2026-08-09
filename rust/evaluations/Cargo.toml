@@ -3,6 +3,10 @@ name = "evaluations"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "evaluate_recursive_form"
+path = "src/bin/compute/evaluate_recursive_form.rs"
+
 [dependencies]
 # fst = { version = "0.4", features = ["levenshtein"] }
 fst = "0.4"

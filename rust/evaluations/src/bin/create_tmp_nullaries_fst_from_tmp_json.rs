@@ -53,10 +53,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let map = Map::new(std::fs::read(&tmp_path).unwrap()).unwrap();
 
     println!();
-    println!("Does map contain '1'? {}", map.contains_key("1"));
-    println!("Does map contain '^(1)'? {}", map.contains_key("^(1)"));
+    println!("Does map contain '0'? {}", map.contains_key("0"));
+    println!("Does map contain '^(0)'? {}", map.contains_key("^(0)"));
     println!();
-    println!("Map value of '1' is {}", map.get("1").unwrap());
+    println!("Map value of '0' is {}", map.get("0").unwrap());
 
     return Ok(());
 }

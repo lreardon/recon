@@ -1,9 +1,7 @@
 use std::env;
 use std::process;
 
-use fst::Streamer;
-
-use evaluations::utils::loaders::load_evaluations;
+use evaluations::store::MapStore;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -21,18 +19,19 @@ fn main() {
         }
     };
 
-    let fst = load_evaluations();
-    let mut stream = fst.stream();
+    let project_root = env::var("PROJECT_ROOT").expect("PROJECT_ROOT is not set");
+    let store = MapStore::open_evaluations(&project_root).expect("Failed to open evaluations");
 
+    // Streams the union of both FST layers in key order.
     let mut count = 0;
-    while count < n {
-        match stream.next() {
-            Some((key, value)) => {
-                let key_str = std::str::from_utf8(key).unwrap();
-                println!("{}\t{}", key_str, value);
-                count += 1;
+    store
+        .for_each_while(|key, value| {
+            if count >= n {
+                return false;
             }
-            None => break,
-        }
-    }
+            println!("{}\t{}", key, value);
+            count += 1;
+            true
+        })
+        .expect("Failed to stream evaluations");
 }

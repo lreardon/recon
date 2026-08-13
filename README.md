@@ -18,9 +18,7 @@ The length of this <b>traditional encoding</b> is logarithmic in the quantity of
 
 This suggests the question - what is the minimum string length required to communicate a quantity, with the minimum of implicit instructions (syntax).
 
-For a syntactically minimal encoding of the positive numbers, we visit Peano Arithmetic, wherein an atomic 0-ary expression (sometimes interpreted as zero, but which we will call <b>1</b>)[^1] and an atomic 1-ary function (which we will call <b>+</b>) may be applied to any 0-ary expression to obtain a <b>next</b> 0-ary expression (which we can further denote or interpret as the rest of the positive natural numbers). We can draw an equivalence through quanity of the strings of our different encodings. Example:
-
-[^1]: One may be concerned that not choosing 0 as the base unary expression is somehow less natural. Observe that 1 = +0, so any expression with 0 as our primitive nullary would be constantly bounded in length above by our corresponding 1-primitive system. Likewise, the Recursive operator R(\*,x,0) = x and R(\*,0,y) = R(\*,y,y-1). Here we <em>do</em> need to be careful - perhaps y is simply expressed, whereas y-1 is much more recursively complex. The tradeoff is that by ignoring expressions of the form R(\*,x,0) we are able to avoid sifting through what may ultimately be a large set of redundant expressions.
+For a syntactically minimal encoding of the positive numbers, we visit Peano Arithmetic, wherein an atomic 0-ary expression (which we will call <b>0</b>) and an atomic 1-ary function (which we will call <b>^</b>) may be applied to any 0-ary expression to obtain a <b>next</b> 0-ary expression (which we can further denote or interpret as the rest of the positive natural numbers). We can draw an equivalence through quanity of the strings of our different encodings. Example:
 
 ###### 2 := +1
 
@@ -56,8 +54,60 @@ Recent thought on the matter has led me to believe that begining with 0 rather t
 
 # Project Structure
 
-Exploration scripts are carried out by rust functions. The source of truth for found expressions is contained in .fst files.
+Exploration scripts are carried out by rust functions. The source of truth for found expressions is contained in .fst files (under `fst/`), and the search's position is checkpointed in `state/`, so exploration can be stopped and resumed at any time without losing or repeating work.
 
-<!-- TODO: Fx this issue please :O -->
+# Using the `recon` command
 
-"Where" in the exploration process we are is not very well codified at the moment.
+`recon` is the search engine. Each time you run it, it generates new expressions, works out the number each one evaluates to, and saves everything it learns. You can stop it whenever you like (Ctrl-C is fine) and the next run picks up exactly where it left off.
+
+If you use [direnv](https://direnv.net), the `.envrc` file already puts `recon` on your PATH and points it at this project — just run it from anywhere inside the repo:
+
+```bash
+recon                # explore a little (one round)
+recon --units 40     # explore more (forty rounds)
+```
+
+By default, `recon` searches **shortest expressions first**: it works through every possible expression of length 1, then length 2, and so on. Each `--units` round finishes one expression length completely. The payoff of going in this order is certainty — once a round finishes, you know that no shorter expression exists for any number found so far. The "exhaustive through length N" line it prints tells you how far that guarantee currently reaches.
+
+There is also an older style of search that grows expressions by how deeply they nest rather than by how long they are:
+
+```bash
+recon --mode depth --units 2
+```
+
+Feel free to switch back and forth between the two — they share everything they learn, so no work is ever lost or repeated when you swap.
+
+A few practical flags:
+
+- `--max-items 50000` — stop after a set amount of work, even mid-round. Handy for dipping a toe into rounds that have grown large.
+- `--batch-secs 30` — how often results are saved while running (the default is fine; everything up to the last save survives a crash or Ctrl-C).
+
+To peek at the results from the terminal:
+
+```bash
+min_form 6           # the shortest known expression for 6
+min_form 6 -v        # ...plus whether it is guaranteed shortest
+min_form             # the whole table of shortest known expressions
+ls_eval 20           # the first 20 recorded expressions and their values
+```
+
+# Using the dashboard
+
+There is a small desktop app in `flutter/dashboard` that shows what the search is up to and lets you poke at the results without touching the terminal.
+
+To launch it:
+
+```bash
+cd flutter/dashboard
+flutter run -d macos
+```
+
+(Or, once built, reopen it directly: `open build/macos/Build/Products/Debug/recon_dashboard.app`.)
+
+The dashboard has three parts:
+
+- **Exploration progress** — how far the search has gotten, how many expressions and values are known, and when results were last saved. It refreshes itself every couple of seconds, so you can leave it open while `recon` runs and watch the numbers climb.
+- **Evaluate a form** — type in any expression (for example `R(^(#),0,^(^(0)))`) and it tells you the number it evaluates to.
+- **Minimum form for a value** — type in a number and it shows the shortest expression currently known for it.
+
+The dashboard assumes the project lives at `~/git/recon`; if you keep it somewhere else, launch the app with the `PROJECT_ROOT` environment variable pointing at your copy.

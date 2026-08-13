@@ -1,0 +1,22 @@
+{
+  "evaluations": {
+    "base_bytes": 50327548,
+    "entries": 22237611,
+    "layers": [
+      "evaluations.recent.fst",
+      "evaluations.fst"
+    ],
+    "recent_bytes": 4096239
+  },
+  "exhaustive_through_length": 60,
+  "step_limited_forms": 291,
+  "unaries": {
+    "base_bytes": 17416703,
+    "entries": 22619747,
+    "layers": [
+      "unaries.recent.fst",
+      "unaries.fst"
+    ],
+    "recent_bytes": 433282
+  }
+}

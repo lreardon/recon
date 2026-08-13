@@ -1,11 +1,17 @@
 #! /bin/bash
+# Reset all exploration state to a fresh start. The next `recon` run recreates
+# seeds and stores from scratch.
+set -eu
 
-${PROJECT_ROOT}/rust/evaluations/target/release/initialize_evaluations_fst
-${PROJECT_ROOT}/rust/evaluations/target/release/initialize_unaries_fst
-cp ${PROJECT_ROOT}/ruby/chains_initial.json ${PROJECT_ROOT}/ruby/models/chains.json
-cp ${PROJECT_ROOT}/ruby/progress_initial.json ${PROJECT_ROOT}/ruby/models/progress.json
-truncate -s 0 ${PROJECT_ROOT}/candidates/unaries.txt
-truncate -s 0 ${PROJECT_ROOT}/candidates/nullaries.txt
-truncate -s 0 ${PROJECT_ROOT}/candidates/new_unaries.txt
-truncate -s 0 ${PROJECT_ROOT}/candidates/new_nullaries.txt
-truncate -s 0 ${PROJECT_ROOT}/candidates/new_nullaries_evaluated.json
+: "${PROJECT_ROOT:?PROJECT_ROOT is not set}"
+
+rm -f "${PROJECT_ROOT}"/fst/evaluations.fst "${PROJECT_ROOT}"/fst/evaluations.recent.fst
+rm -f "${PROJECT_ROOT}"/fst/unaries.fst "${PROJECT_ROOT}"/fst/unaries.recent.fst
+rm -f "${PROJECT_ROOT}"/fst/MANIFEST.json "${PROJECT_ROOT}"/fst/shortest_by_value.tsv
+rm -rf "${PROJECT_ROOT}"/state/strata "${PROJECT_ROOT}"/state/chains
+rm -f "${PROJECT_ROOT}"/state/progress.json "${PROJECT_ROOT}"/state/length_progress.json
+rm -f "${PROJECT_ROOT}"/state/step_limited.tsv
+rm -f "${PROJECT_ROOT}"/state/depth_seen_nullaries.fst "${PROJECT_ROOT}"/state/depth_seen_nullaries.recent.fst
+rm -f "${PROJECT_ROOT}"/state/depth_seen_unaries.fst "${PROJECT_ROOT}"/state/depth_seen_unaries.recent.fst
+
+echo "Exploration state reset. Run 'recon' to start fresh."

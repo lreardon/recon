@@ -143,15 +143,103 @@ of the `explore` binary.
    merged (dedup hit rate accounts for the rest).
 4. **Ruby parity:** for any form, `evaluate_recursive_form` agrees with the ruby evaluator.
 
-## Open questions
+## Decisions (were: open questions)
 
-- **u64 ceilings.** Deep forms will overflow u64 quickly (the FST value type is u64). Decide policy:
-  store an overflow sentinel, cap exploration when values exceed a bound, or move values out of the
-  FST into a sidecar keyed by FST-assigned ids (FST maps to id; sidecar holds bignums via
-  `num-bigint`, already a dependency).
-- **Semantic dedup.** Distinct strings with equal values are both kept today (intentional — the map
-  is expression → value). If the interesting output is min-length-per-value, a small inverted index
-  (value → shortest expression) maintained at commit time would answer that without scanning.
-- **Chain file growth.** Depth files grow combinatorially. The dedup gate slows this, but at some
-  depth the frontier itself won't fit comfortably; consider storing frontiers as FSTs too (ordered,
-  compressed, streamable) rather than plain text.
+- **u64 ceilings → cap at overflow.** A candidate whose evaluation overflows u64 (or blows the
+  step limit) is dropped entirely: not stored, not added to the frontier. The goal is filling in
+  the numbers that fit in u64, not boring deeper into massive quantities. Overflowing candidates
+  are counted in the per-commit stats and remembered in-run so they are not re-evaluated.
+- **Min-length-per-value → inverted index.** `fst/shortest_by_value.tsv` (value → shortest known
+  expression, ties broken lexicographically) is maintained at commit time and rewritten
+  atomically. It bootstraps from the full corpus if absent. Query it with the `min_form` binary
+  (`min_form 5` → shortest expression for 5; no argument dumps the whole index).
+- **Frontiers as FSTs.** Chain files are now per-depth FST sets
+  (`state/chains/{nullaries,unaries}/<depth>.fst`). Appends are atomic union-merges, which makes
+  them idempotent — a replayed append after a crash cannot create duplicates, closing the
+  crash-window that plain-text appends had. Enumeration order is lexicographic (deterministic and
+  resumable). Legacy `.txt` frontiers are auto-migrated to `.fst` on first load.
+
+## Implementation status (2026-08-12)
+
+All milestones are implemented in `rust/evaluations`:
+
+- **M1** `src/evaluator.rs` — library evaluator with pluggable `EvalLookup`, step limit, and unit
+  tests pinned to ruby parity. `evaluate_recursive_form` is now a thin CLI over it.
+- **M2/M3** `src/engine.rs` + the `explore` binary — pair enumeration (same depth/phase scheme and
+  `progress.json` format as the ruby explorer), three-tier dedup gate, overflow capping,
+  batched commits (`--batch-keys`/`--batch-secs`) in crash-safe order (frontiers → stores →
+  index/manifest → progress cursor, each atomic), per-commit stats lines.
+- **M4** `src/store.rs` — two-layer (base + recent) `MapStore`/`SetStore` with atomic layer swaps,
+  threshold compaction (`--compact-mb`), `fst/MANIFEST.json`; `query_evaluations_fst`, `ls_eval`,
+  and `evaluate_recursive_form` all read through both layers.
+- **M5** — candidates/*.txt retired from the hot path (in-memory batches); stats emitted per
+  commit; `min_form` added.
+
+Verified: 8 unit tests; a 3-depth scratch run whose 67 stored values all match independent ruby
+structural evaluation; and resume determinism — the same 3 depths run uninterrupted vs. killed and
+resumed every 7 pairs (13 invocations) produce byte-identical corpora, min index, and frontiers.
+
+Note: the ruby implementation this replaced has been removed entirely (2026-08-13); its
+evaluator's semantics live on as the pinned parity tests in `src/evaluator.rs`.
+
+## Length-based exhaustive search (2026-08-13, now the default)
+
+Depth (generation) order correlates badly with form length: successor towers need one depth per
+application, so short forms were deferred behind exponentially many long R-forms and the min-index
+could report non-minimal "shortest" forms (6 was reported as a length-29 form; the true minimum is
+the length-19 tower). The default mode is now an **iterative-lengthening sweep** that synthesizes
+every well-formed form of exact length L from strictly shorter, already-completed strata:
+
+- Nullaries: `0` (L=1) · `^(N[L−3])` · `R(U[lu],N[la],N[lb])` with `lu+la+lb = L−5`
+- Unaries: `^(*)` (L=4) · `^(U[L−3])` · `R(U[lu],N[ln],*)` / `R(U[lu],*,N[ln])` with
+  `lu+ln = L−6`
+
+`^`-wrapped compound unaries (e.g. `^(^(*))` = "+2") are now part of the grammar in **both**
+modes — their exclusion was an oversight. They immediately shorten many minimums
+(10 = `R(^(^(#)),0,^(^(^(^(^(0))))))`, length 29, vs. the length-31 tower).
+
+Key properties:
+
+- **Certified minimality.** When stratum L completes, `complete_through_length` (the watermark, in
+  `state/length_progress.json` and the manifest) advances to L: the min-index is *definitive* for
+  any value whose entry is ≤ the watermark. `min_form <value> -v` reports
+  definitive/provisional.
+- **Strata live at `state/strata/{nullaries,unaries}/<length>.fst`** — same idempotent
+  union-append FSTs as depth chains. Synthesis order is deterministic, so the resume cursor is
+  just `(length, item-count)`; overflowing forms are pruned from strata (sound: overflow
+  propagates to every superterm).
+- **Mode switching is free.** `recon --mode depth` runs the original generation search; each mode
+  has its own independently persisted cursor, and both share the same value store/dedup, so
+  switching never redoes an evaluation. Depth mode's frontier gate is a dedicated
+  `state/depth_seen_*.fst` layer (bootstrapped from existing chains) rather than the value store,
+  so a form first found by the length sweep still enters a depth frontier the first time depth
+  mode derives it — neither mode can starve the other's frontier.
+
+Verified: sweep through length 40 (22,339 evaluations, 0.2 s) certifies 0–8 as towers and
+10/12/16/20/24 as compound-successor R-forms; an interleaved length→depth→length run produces
+byte-identical strata, min-index, and corpus to a pure-length run with zero extra evaluations; and
+depth mode remains byte-for-byte deterministic under kill/resume (18 interrupted invocations).
+Stratum enumeration is additionally differential-tested against an independent brute-force
+fixpoint enumerator (measured string lengths, no shared formulas): exact match through length 26.
+
+### Step-limit pruning is deferral, not pruning (2026-08-13)
+
+Overflow is a permanent, sound verdict (it propagates to every superterm). Exceeding the
+evaluation step limit is not — the form might have an in-range value given more budget. The two
+are now handled differently:
+
+- Step-limited forms are persisted to `state/step_limited.tsv` and *excluded* from strata,
+  frontiers, and the corpus, but remembered. Stats report `overflow=` and `limited=` separately,
+  and the manifest carries `step_limited_forms`.
+- Certification accounts for them: `min_form <v> -v` reports **conditional** (instead of
+  definitive) whenever an unresolved step-limited form is shorter than the answer, and `recon`
+  prints a note when any are outstanding.
+- `recon --retry-limited --step-limit <bigger>` re-attempts the ledger. Resolved forms join the
+  corpus and their stratum; if a resolved form sits at or below the watermark, the sweep cursor
+  automatically **rolls back** to that length so the next run regenerates the superterms that were
+  skipped while the form was missing (cheap: replay of known forms is pure lookups). Retried forms
+  that turn out to overflow are moved to the permanent bucket.
+
+Verified end-to-end: a sweep run with `--step-limit 1` (2 forms deferred, flagged conditional),
+followed by `--retry-limited` (rollback to length 24) and a re-sweep, converges **byte-identically**
+— corpus, min-index, and all 39 strata — with a clean full-budget sweep at the same watermark.

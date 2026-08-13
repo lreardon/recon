@@ -1,0 +1,10 @@
+#! /bin/bash
+# Launch the Flutter recon dashboard (macOS desktop app). PROJECT_ROOT is passed
+# through so the dashboard reads state from this checkout. Extra args are
+# forwarded to `flutter run` (e.g. `ui -d chrome`).
+set -eu
+
+: "${PROJECT_ROOT:?PROJECT_ROOT is not set}"
+
+cd "${PROJECT_ROOT}/flutter/dashboard"
+exec fvm flutter run -d macos --release "$@"

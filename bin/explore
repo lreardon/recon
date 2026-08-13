@@ -1,3 +1,0 @@
-#! /bin/bash
-
-rdbg --open --nonstop ${PROJECT_ROOT}/ruby/explore.rb
